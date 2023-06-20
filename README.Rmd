@@ -1,0 +1,164 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# dplyr.extras
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The goal of dplyr.extras is to ...
+
+## Installation
+
+You can install the development version of dplyr.extras from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("vituri/dplyr.extras")
+```
+
+## Motivation
+
+`dplyr.extras` intends to:
+
+- make it easy to apply functions conditionally in the middle of a pipe;
+- extend `dplyr::filter` and `dplyr::mutate` to vectors;
+- generalize functions that "glue" dataframes to an existing one, like `dplyr::add_count`.
+
+## Examples
+
+For the examples, consider this dataframe:
+
+```{r}
+library(dplyr.extras)
+set.seed(1)
+n = 10
+df = 
+  dplyr::tibble(
+    a = runif(n = n)
+    , b = c('a', rep('b', 2), rep('c', 3), rep('d', 4))
+    )
+
+df
+```
+
+### Conditionally apply a function in the middle of a pipe
+
+Suppose we are in a shiny app and there is a filter in a widget; it displays the letters in `df$b` and also the string `all`. If the selected string is `all`, we don't want to filter our `df`. This can be done in a pipe as this:
+
+```{r}
+selected_string = 'all' # from the input$selected_string
+
+df %>% 
+  {
+    if (selected_string == 'all') {
+      (.)
+    } else {
+      (.) %>% filter(b %in% selected_string)
+    }
+  } # %>% 
+#  ... the rest of the pipe
+```
+
+With `dplyr.extras`, this can be a bit shorter:
+
+```{r}
+df %>% 
+  map_if_true(condition = selected_string != 'all', .f = . %>% filter(b %in% selected_string)) # %>% 
+  # ...
+```
+
+There is also the variant
+
+```r
+df %>% 
+  map_if_condition(condition, .f_if_true, .f_if_false)
+```
+
+where we can apply two different functions, depending on the truthy of `condition`.
+
+As another example: using `dbplyr` to query a table in a database, we can create a function like this
+
+```{r}
+get_data_from_my_table = function(con, var1 = NULL, var2 = NULL, var3 = NULL) {
+  tbl(con, 'table_name') %>% 
+    map_if_true(!is.null(v1), . %>% filter(Column1 %in% var1)) %>% 
+    map_if_true(!is.null(v2), . %>% filter(Column2 %in% var2)) %>% 
+    map_if_true(!is.null(v3), . %>% filter(Column3 %in% var3)) %>% 
+    # ...
+    collect()
+}
+```
+
+to query data with the filters we give. If `var1` is `NULL`, for example, we won't filter the values in Column1 of our table, and so on.
+
+### `add_count` but without count
+
+Sometimes, given a dataframe `df` like above we would like to add columns that somehow aggregate the dataframe. The function `dplyr::add_cout` does this with count:
+
+```{r}
+df %>% add_count(b, name = 'count')
+```
+
+What if we wanted to summarise the max of `a` for each `b` instead of counting? 
+
+```{r}
+df %>% 
+  left_join(
+    df %>% summarise(max = max(a), .by = b)
+  )
+```
+
+With `dplyr.extras` we can save some lines:
+```{r}
+df %>% 
+  map_then_left_join(.f = \(df) df %>% summarise(max = max(a), .by = b))
+```
+
+
+### Filtering and modifying vectors
+
+```{r}
+library(dplyr.extras)
+df = tibble(a = 1:10, b = letters[1:10])
+```
+
+It is easy to filter some rows that satisfy a certain condition in a dataframe:
+
+```{r}
+df %>%
+  filter(a >= 5)
+```
+
+Sometimes, however, we only have a vector `v` 
+```{r}
+v = df$a
+v
+```
+
+instead of a dataframe. To subset it like above, we would need to do something like
+
+```{r}
+v[v >= 5]
+```
+
+
+
+This is a basic example which shows you how to solve a common problem:
+
+```{r example}
+library(dplyr.extras)
+## basic example code
+```
