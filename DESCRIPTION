@@ -1,0 +1,14 @@
+Package: dplyr.extras
+Type: Package
+Title: Some extra functions to use with dplyr
+Version: 0.1.0
+Author: G. Vituri
+Maintainer: G. Vituri <vituri.vituri@gmail.com>
+Description: Applying functions conditionally, 
+    binding rows with results and some extensions to vectors.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Depends: dplyr,
+  magrittr
+RoxygenNote: 7.2.3
