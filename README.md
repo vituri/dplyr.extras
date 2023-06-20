@@ -23,7 +23,8 @@ devtools::install_github("vituri/dplyr.extras")
 `dplyr.extras` intends to:
 
 - make it easy to apply functions conditionally in the middle of a pipe;
-- extend `dplyr::filter` and `dplyr::mutate` to vectors;
+- modify and subset vectors in a “pipeable” manner, like we do with
+  dataframes using `dplyr::filter` and `dplyr::mutate`;
 - generalize functions that “glue” dataframes to an existing one, like
   `dplyr::add_count`.
 
@@ -218,47 +219,154 @@ df %>%
 
 ### Filtering and modifying vectors
 
-``` r
-library(dplyr.extras)
-df = tibble(a = 1:10, b = letters[1:10])
-```
-
-It is easy to filter some rows that satisfy a certain condition in a
-dataframe:
+Suppose we want to do the following: given an integer vector `x`
 
 ``` r
-df %>%
-  filter(a >= 5)
-#> # A tibble: 6 × 2
-#>       a b    
-#>   <int> <chr>
-#> 1     5 e    
-#> 2     6 f    
-#> 3     7 g    
-#> 4     8 h    
-#> 5     9 i    
-#> 6    10 j
+x = 1:50
+x
+#>  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+#> [26] 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
 ```
 
-Sometimes, however, we only have a vector `v`
+we want to:
+
+- keep only the even numbers of x;
+- add 1 to all numbers of x;
+- multiply by -1 the numbers less than 25;
+- sum the result
 
 ``` r
-v = df$a
-v
-#>  [1]  1  2  3  4  5  6  7  8  9 10
+# dplyr.extras approach can be "piped"
+x %>% 
+  vec_filter(\(x) x %% 2 == 0) %>% # keep the even
+  vec_mutate(\(x) x+1) %>% # sum 1
+  vec_mutate(\(x) -x, \(x) x < 25) %>% # multiply by -1 only those that satisfy x < 25 
+  sum()
+#> [1] 389
 ```
 
-instead of a dataframe. To subset it like above, we would need to do
-something like
+Compare it with the base R approach:
 
 ``` r
-v[v >= 5]
-#> [1]  5  6  7  8  9 10
+y = x[x %% 2 == 0]
+z = y + 1
+w = z
+id = w < 25
+w[id] = - w[id]
+sum(w)
+#> [1] 389
 ```
 
-This is a basic example which shows you how to solve a common problem:
+### Performance of vec_mutate when compared to purrr
 
 ``` r
-library(dplyr.extras)
-## basic example code
+x = 1:1e5
+
+# get the sum of all odd numbers in x
+x %>% vec_filter(\(x) x %% 2 == 0) %>% sum()
+#> [1] 2500050000
+
+# get all numbers where the square of it is less than 10000
+x %>% vec_filter(\(x) x^2 < 10000)
+#>  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+#> [26] 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
+#> [51] 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75
+#> [76] 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99
+
+# take values from column b when a is NA
+tibble::tibble(
+  a = 1:10 %>% vec_mutate(NA, \(x) x %% 2 == 0)
+  ,b = -(1:10)
+) %>% 
+  dplyr::mutate(
+    if_a_is_na_then_b = a %>% vec_mutate(b, is.na)
+  )
+#> # A tibble: 10 × 3
+#>        a     b if_a_is_na_then_b
+#>    <int> <int>             <int>
+#>  1     1    -1                 1
+#>  2    NA    -2                -2
+#>  3     3    -3                 3
+#>  4    NA    -4                -4
+#>  5     5    -5                 5
+#>  6    NA    -6                -6
+#>  7     7    -7                 7
+#>  8    NA    -8                -8
+#>  9     9    -9                 9
+#> 10    NA   -10               -10
 ```
+
+Compared to `purrr::keep` and `purrr::modify`, `dplyr.extras` is faster
+because it only accepts vectors and vectorized functions.
+
+``` r
+x = 1:1e5
+
+mbm = microbenchmark::microbenchmark(
+  baseR = {
+    x[x^2 <= 5000]
+  }
+  ,dplyr.extras = {
+    x %>% vec_filter(~ .x^2 <= 5000)
+  }
+  ,purrr = {
+    x %>% purrr::keep(~ .x^2 <= 5000)
+  }
+
+  ,times = 25L
+)
+
+mbm
+#> Unit: microseconds
+#>          expr        min         lq        mean     median         uq
+#>         baseR    388.460    413.266    509.0370    470.439    650.385
+#>  dplyr.extras    434.625    505.540    577.1983    536.025    590.488
+#>         purrr 264578.760 278283.763 282120.7121 279741.249 285190.041
+#>         max neval
+#>     702.293    25
+#>     824.900    25
+#>  333712.368    25
+```
+
+``` r
+ggplot2::autoplot(mbm)
+```
+
+<img src="man/figures/README-plot1-1.png" width="100%" />
+
+``` r
+x = 1:1e5
+
+mbm2 = microbenchmark::microbenchmark(
+  baseR = {
+    ids = x <= 10000
+    x[ids] = x[ids] + 2
+    x
+  }
+  ,dplyr.extras = {
+    x %>% vec_mutate(~ .x + 2, ~ .x <= 10000)
+  }
+  ,purrr = {
+    x %>% purrr::modify_if(.f = ~ .x + 2L, .p = ~.x <= 10000)
+  }
+
+  ,times = 25L
+)
+
+mbm2
+#> Unit: microseconds
+#>          expr        min         lq        mean     median         uq
+#>         baseR    350.278    389.774    530.7576    441.364    537.440
+#>  dplyr.extras    617.165    759.677   1057.1402    802.275   1306.195
+#>         purrr 262022.492 274642.117 279751.7688 277307.596 281017.938
+#>         max neval
+#>    1201.706    25
+#>    2501.607    25
+#>  361533.801    25
+```
+
+``` r
+ggplot2::autoplot(mbm2)
+```
+
+<img src="man/figures/README-plot2-1.png" width="100%" />

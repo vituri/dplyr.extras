@@ -34,7 +34,7 @@ devtools::install_github("vituri/dplyr.extras")
 `dplyr.extras` intends to:
 
 - make it easy to apply functions conditionally in the middle of a pipe;
-- extend `dplyr::filter` and `dplyr::mutate` to vectors;
+- modify and subset vectors in a "pipeable" manner, like we do with dataframes using `dplyr::filter` and `dplyr::mutate`;
 - generalize functions that "glue" dataframes to an existing one, like `dplyr::add_count`.
 
 ## Examples
@@ -130,35 +130,110 @@ df %>%
 
 ### Filtering and modifying vectors
 
-```{r}
-library(dplyr.extras)
-df = tibble(a = 1:10, b = letters[1:10])
-```
-
-It is easy to filter some rows that satisfy a certain condition in a dataframe:
+Suppose we want to do the following: given an integer vector `x`
 
 ```{r}
-df %>%
-  filter(a >= 5)
+x = 1:50
+x
 ```
 
-Sometimes, however, we only have a vector `v` 
+we want to:
+
+- keep only the even numbers of x;
+- add 1 to all numbers of x;
+- multiply by -1 the numbers less than 25;
+- sum the result
+
 ```{r}
-v = df$a
-v
+# dplyr.extras approach can be "piped"
+x %>% 
+  vec_filter(\(x) x %% 2 == 0) %>% # keep the even
+  vec_mutate(\(x) x+1) %>% # sum 1
+  vec_mutate(\(x) -x, \(x) x < 25) %>% # multiply by -1 only those that satisfy x < 25 
+  sum()
 ```
 
-instead of a dataframe. To subset it like above, we would need to do something like
+Compare it with the base R approach:
 
 ```{r}
-v[v >= 5]
+y = x[x %% 2 == 0]
+z = y + 1
+w = z
+id = w < 25
+w[id] = - w[id]
+sum(w)
 ```
 
-
-
-This is a basic example which shows you how to solve a common problem:
+### Performance of vec_mutate when compared to purrr
 
 ```{r example}
-library(dplyr.extras)
-## basic example code
+x = 1:1e5
+
+# get the sum of all odd numbers in x
+x %>% vec_filter(\(x) x %% 2 == 0) %>% sum()
+
+# get all numbers where the square of it is less than 10000
+x %>% vec_filter(\(x) x^2 < 10000)
+
+# take values from column b when a is NA
+tibble::tibble(
+  a = 1:10 %>% vec_mutate(NA, \(x) x %% 2 == 0)
+  ,b = -(1:10)
+) %>% 
+  dplyr::mutate(
+    if_a_is_na_then_b = a %>% vec_mutate(b, is.na)
+  )
+
+```
+
+Compared to `purrr::keep` and `purrr::modify`, `dplyr.extras` is faster because it only accepts vectors and vectorized functions.
+
+```{r}
+x = 1:1e5
+
+mbm = microbenchmark::microbenchmark(
+  baseR = {
+    x[x^2 <= 5000]
+  }
+  ,dplyr.extras = {
+    x %>% vec_filter(~ .x^2 <= 5000)
+  }
+  ,purrr = {
+    x %>% purrr::keep(~ .x^2 <= 5000)
+  }
+
+  ,times = 25L
+)
+
+mbm
+```
+
+```{r plot1}
+ggplot2::autoplot(mbm)
+```
+
+```{r}
+x = 1:1e5
+
+mbm2 = microbenchmark::microbenchmark(
+  baseR = {
+    ids = x <= 10000
+    x[ids] = x[ids] + 2
+    x
+  }
+  ,dplyr.extras = {
+    x %>% vec_mutate(~ .x + 2, ~ .x <= 10000)
+  }
+  ,purrr = {
+    x %>% purrr::modify_if(.f = ~ .x + 2L, .p = ~.x <= 10000)
+  }
+
+  ,times = 25L
+)
+
+mbm2
+```
+
+```{r plot2}
+ggplot2::autoplot(mbm2)
 ```

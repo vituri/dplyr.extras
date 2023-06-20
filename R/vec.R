@@ -8,12 +8,12 @@ if_is_formula_then_mapper = function(.f) {
 
 #' Filter a vector
 #' @param .x A vector.
-#' @param .f A single predicate function or a logical vector of the same length as .x.
+#' @param .f A single predicate function (or formula) or a logical vector of the same length as .x.
 #' @return The vector .x with (possibly) some entries deleted.
 #' @export
 vec_filter = function(.x, .f = vec_all_true) {
   if (purrr::is_empty(.x)) return(.x)
-  # .f %<>% if_is_formula_then_mapper()
+  .f %<>% if_is_formula_then_mapper()
 
   ids = .f(.x)
   y = .x[ids]
@@ -22,16 +22,16 @@ vec_filter = function(.x, .f = vec_all_true) {
 
 #' Modify a vector with some function
 #' @param .x A vector.
-#' @param .f A function to apply in .x or a vector of the same length as .x.
-#' @param .p A single predicate function or a logical vector of the same length as .x. Only those elements where .p evaluates to TRUE will be modified.
+#' @param .f A function (or formula) to apply in .x or a vector of the same length as .x.
+#' @param .p A single predicate function (or formula) or a logical vector of the same length as .x. Only those elements where .p evaluates to TRUE will be modified.
 #' @return The vector .x with possibly some entries modified by .f.
 #' @export
 vec_mutate = function(.x, .f = identity, .p = vec_all_true) {
 
   if (purrr::is_empty(.x)) return(.x)
 
-  # .f %<>% if_is_formula_then_mapper()
-  # .p %<>% if_is_formula_then_mapper()
+  .f %<>% if_is_formula_then_mapper()
+  .p %<>% if_is_formula_then_mapper()
 
   .p = vec_to_fun(.p)
   ids = .p(.x)
