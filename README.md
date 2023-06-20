@@ -150,72 +150,23 @@ get_data_from_my_table = function(con, var1 = NULL, var2 = NULL, var3 = NULL) {
 to query data with the filters we give. If `var1` is `NULL`, for
 example, we won’t filter the values in Column1 of our table, and so on.
 
-### `add_count` but without count
-
-Sometimes, given a dataframe `df` like above we would like to add
-columns that somehow aggregate the dataframe. The function
-`dplyr::add_cout` does this with count:
-
-``` r
-df %>% add_count(b, name = 'count')
-#> # A tibble: 10 × 3
-#>         a b     count
-#>     <dbl> <chr> <int>
-#>  1 0.266  a         1
-#>  2 0.372  b         2
-#>  3 0.573  b         2
-#>  4 0.908  c         3
-#>  5 0.202  c         3
-#>  6 0.898  c         3
-#>  7 0.945  d         4
-#>  8 0.661  d         4
-#>  9 0.629  d         4
-#> 10 0.0618 d         4
-```
-
-What if we wanted to summarise the max of `a` for each `b` instead of
-counting?
-
-``` r
-df %>% 
-  left_join(
-    df %>% summarise(max = max(a), .by = b)
-  )
-#> Joining with `by = join_by(b)`
-#> # A tibble: 10 × 3
-#>         a b       max
-#>     <dbl> <chr> <dbl>
-#>  1 0.266  a     0.266
-#>  2 0.372  b     0.573
-#>  3 0.573  b     0.573
-#>  4 0.908  c     0.908
-#>  5 0.202  c     0.908
-#>  6 0.898  c     0.908
-#>  7 0.945  d     0.945
-#>  8 0.661  d     0.945
-#>  9 0.629  d     0.945
-#> 10 0.0618 d     0.945
-```
-
-With `dplyr.extras` we can save some lines:
-
-``` r
-df %>% 
-  map_then_left_join(.f = \(df) df %>% summarise(max = max(a), .by = b))
-#> # A tibble: 10 × 3
-#>         a b       max
-#>     <dbl> <chr> <dbl>
-#>  1 0.266  a     0.266
-#>  2 0.372  b     0.573
-#>  3 0.573  b     0.573
-#>  4 0.908  c     0.908
-#>  5 0.202  c     0.908
-#>  6 0.898  c     0.908
-#>  7 0.945  d     0.945
-#>  8 0.661  d     0.945
-#>  9 0.629  d     0.945
-#> 10 0.0618 d     0.945
-```
+<!-- ### `add_count` but without count -->
+<!-- Sometimes, given a dataframe `df` like above we would like to add columns that somehow aggregate the dataframe. The function `dplyr::add_cout` does this with count: -->
+<!-- ```{r} -->
+<!-- df %>% add_count(b, name = 'count') -->
+<!-- ``` -->
+<!-- What if we wanted to summarise the max of `a` for each `b` instead of counting?  -->
+<!-- ```{r} -->
+<!-- df %>%  -->
+<!--   left_join( -->
+<!--     df %>% summarise(max = max(a), .by = b) -->
+<!--   ) -->
+<!-- ``` -->
+<!-- With `dplyr.extras` we can save some lines: -->
+<!-- ```{r} -->
+<!-- df %>%  -->
+<!--   map_then_left_join(.f = \(df) df %>% summarise(max = max(a), .by = b)) -->
+<!-- ``` -->
 
 ### Filtering and modifying vectors
 
@@ -257,27 +208,61 @@ sum(w)
 #> [1] 389
 ```
 
-### Performance of vec_mutate when compared to purrr
+#### Another example
+
+Let
 
 ``` r
 x = 1:1e5
+```
 
-# get the sum of all odd numbers in x
+Get the sum of all odd numbers in x:
+
+``` r
 x %>% vec_filter(\(x) x %% 2 == 0) %>% sum()
 #> [1] 2500050000
+```
 
-# get all numbers where the square of it is less than 10000
+Get all numbers where the square of it is less than 10000:
+
+``` r
 x %>% vec_filter(\(x) x^2 < 10000)
 #>  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
 #> [26] 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50
 #> [51] 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75
 #> [76] 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99
+```
 
+#### Modifying dataframes
+
+Fill the `NA` values of a dataframe using another column:
+
+``` r
 # take values from column b when a is NA
-tibble::tibble(
+df = 
+  tibble::tibble(
   a = 1:10 %>% vec_mutate(NA, \(x) x %% 2 == 0)
   ,b = -(1:10)
-) %>% 
+) 
+
+df 
+#> # A tibble: 10 × 2
+#>        a     b
+#>    <int> <int>
+#>  1     1    -1
+#>  2    NA    -2
+#>  3     3    -3
+#>  4    NA    -4
+#>  5     5    -5
+#>  6    NA    -6
+#>  7     7    -7
+#>  8    NA    -8
+#>  9     9    -9
+#> 10    NA   -10
+```
+
+``` r
+df %>% 
   dplyr::mutate(
     if_a_is_na_then_b = a %>% vec_mutate(b, is.na)
   )
@@ -296,8 +281,12 @@ tibble::tibble(
 #> 10    NA   -10               -10
 ```
 
-Compared to `purrr::keep` and `purrr::modify`, `dplyr.extras` is faster
-because it only accepts vectors and vectorized functions.
+### Comparing vector manipulation with `purrr`
+
+The `purrr` package has two functions that are analogue to `vec_mutate`
+and `vec_filter`, respectively: `purrr::keep` and `purrr::modify`.
+However, `dplyr.extras` is faster because it only accepts vectors and
+vectorized functions, and the result is a vector (not a list).
 
 ``` r
 x = 1:1e5
@@ -318,14 +307,14 @@ mbm = microbenchmark::microbenchmark(
 
 mbm
 #> Unit: microseconds
-#>          expr        min         lq        mean     median         uq
-#>         baseR    388.460    413.266    509.0370    470.439    650.385
-#>  dplyr.extras    434.625    505.540    577.1983    536.025    590.488
-#>         purrr 264578.760 278283.763 282120.7121 279741.249 285190.041
-#>         max neval
-#>     702.293    25
-#>     824.900    25
-#>  333712.368    25
+#>          expr        min        lq        mean     median         uq        max
+#>         baseR    389.042    421.88    552.7139    469.952    671.028   1056.618
+#>  dplyr.extras    439.333    508.23    628.6824    561.893    672.648   1297.781
+#>         purrr 267616.134 282738.81 307406.1830 301738.524 318851.278 410925.056
+#>  neval
+#>     25
+#>     25
+#>     25
 ```
 
 ``` r
@@ -356,13 +345,13 @@ mbm2 = microbenchmark::microbenchmark(
 mbm2
 #> Unit: microseconds
 #>          expr        min         lq        mean     median         uq
-#>         baseR    350.278    389.774    530.7576    441.364    537.440
-#>  dplyr.extras    617.165    759.677   1057.1402    802.275   1306.195
-#>         purrr 262022.492 274642.117 279751.7688 277307.596 281017.938
+#>         baseR    373.026    436.768    609.4924    520.123    699.230
+#>  dplyr.extras    690.105    732.597   1114.8807    971.928   1314.007
+#>         purrr 251271.782 271122.177 289337.6700 278473.997 303992.804
 #>         max neval
-#>    1201.706    25
-#>    2501.607    25
-#>  361533.801    25
+#>    1287.846    25
+#>    2860.998    25
+#>  365765.380    25
 ```
 
 ``` r

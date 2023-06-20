@@ -104,28 +104,28 @@ get_data_from_my_table = function(con, var1 = NULL, var2 = NULL, var3 = NULL) {
 
 to query data with the filters we give. If `var1` is `NULL`, for example, we won't filter the values in Column1 of our table, and so on.
 
-### `add_count` but without count
+<!-- ### `add_count` but without count -->
 
-Sometimes, given a dataframe `df` like above we would like to add columns that somehow aggregate the dataframe. The function `dplyr::add_cout` does this with count:
+<!-- Sometimes, given a dataframe `df` like above we would like to add columns that somehow aggregate the dataframe. The function `dplyr::add_cout` does this with count: -->
 
-```{r}
-df %>% add_count(b, name = 'count')
-```
+<!-- ```{r} -->
+<!-- df %>% add_count(b, name = 'count') -->
+<!-- ``` -->
 
-What if we wanted to summarise the max of `a` for each `b` instead of counting? 
+<!-- What if we wanted to summarise the max of `a` for each `b` instead of counting?  -->
 
-```{r}
-df %>% 
-  left_join(
-    df %>% summarise(max = max(a), .by = b)
-  )
-```
+<!-- ```{r} -->
+<!-- df %>%  -->
+<!--   left_join( -->
+<!--     df %>% summarise(max = max(a), .by = b) -->
+<!--   ) -->
+<!-- ``` -->
 
-With `dplyr.extras` we can save some lines:
-```{r}
-df %>% 
-  map_then_left_join(.f = \(df) df %>% summarise(max = max(a), .by = b))
-```
+<!-- With `dplyr.extras` we can save some lines: -->
+<!-- ```{r} -->
+<!-- df %>%  -->
+<!--   map_then_left_join(.f = \(df) df %>% summarise(max = max(a), .by = b)) -->
+<!-- ``` -->
 
 
 ### Filtering and modifying vectors
@@ -164,29 +164,51 @@ w[id] = - w[id]
 sum(w)
 ```
 
-### Performance of vec_mutate when compared to purrr
+#### Another example
+
+Let 
 
 ```{r example}
 x = 1:1e5
+```
 
-# get the sum of all odd numbers in x
+Get the sum of all odd numbers in x:
+
+```{r}
 x %>% vec_filter(\(x) x %% 2 == 0) %>% sum()
+```
 
-# get all numbers where the square of it is less than 10000
+Get all numbers where the square of it is less than 10000:
+
+```{r}
 x %>% vec_filter(\(x) x^2 < 10000)
+```
 
+#### Modifying dataframes
+
+Fill the `NA` values of a dataframe using another column:
+
+```{r}
 # take values from column b when a is NA
-tibble::tibble(
+df = 
+  tibble::tibble(
   a = 1:10 %>% vec_mutate(NA, \(x) x %% 2 == 0)
   ,b = -(1:10)
-) %>% 
+) 
+
+df 
+```
+
+```{r}
+df %>% 
   dplyr::mutate(
     if_a_is_na_then_b = a %>% vec_mutate(b, is.na)
   )
-
 ```
 
-Compared to `purrr::keep` and `purrr::modify`, `dplyr.extras` is faster because it only accepts vectors and vectorized functions.
+### Comparing vector manipulation with `purrr`
+
+The `purrr` package has two functions that are analogue to `vec_mutate` and `vec_filter`, respectively: `purrr::keep` and `purrr::modify`. However, `dplyr.extras` is faster because it only accepts vectors and vectorized functions, and the result is a vector (not a list).
 
 ```{r}
 x = 1:1e5
